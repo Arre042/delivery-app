@@ -1,0 +1,193 @@
+<div class="layout">
+  <!-- ===== แถบซ้าย ===== -->
+  <aside class="side">
+    <div class="stats">
+      <div><b>{{ orders().length }}</b><span>ออเดอร์</span></div>
+      <div><b>{{ total() }}</b><span>กล่อง</span></div>
+      <div [class.over]="total() > capacity"><b>{{ activeCount }}</b><span>ไรเดอร์พร้อมวิ่ง</span></div>
+    </div>
+    <small class="cap" [class.overtxt]="total() > capacity">ความจุรวม {{ capacity }} กล่อง ({{ activeCount }} คัน x
+      10)</small>
+
+    <div class="card">
+      <h3>เพิ่มออเดอร์ด่วน</h3>
+      <input [(ngModel)]="phone" (input)="onPhone()" placeholder="พิมพ์เบอร์โทร หรือชื่อลูกค้า" />
+      @if (!found() && matches().length) {
+      <div class="pick">
+        @for (c of matches(); track c.id) {
+        <button class="pickrow" (click)="pick(c)">{{ c.firstname }} {{ c.lastname }} ({{ c.phone }})</button>
+        }
+      </div>
+      }
+      @if (found(); as f) {
+      <div class="okbox"><b>{{ f.firstname }} {{ f.lastname }}</b><br><small>พิกัด {{ f.lat }}, {{ f.lng }}</small>
+      </div>
+      <div class="row">
+        <input class="sm" type="number" min="1" max="3" [(ngModel)]="qty" [class.bad]="qtyBad" /> <span>กล่อง</span>
+        <button [disabled]="qtyBad" (click)="addQuick()">เพิ่มออเดอร์</button>
+      </div>
+      @if (qtyBad) { <small class="err">ใส่ได้ 1-3 เท่านั้น</small> }
+      } @else if (phone.trim().length >= 3 && !matches().length) {
+      <div class="nf">ไม่พบลูกค้า <a routerLink="/customers">เพิ่มลูกค้าใหม่</a></div>
+      }
+      @if (warn()) { <div class="warnbar">{{ warn() }}</div> }
+    </div>
+
+    <div class="card">
+      <h3>ค้นหาใกล้พิกัด</h3>
+      <small class="hint">คลิกบนแผนที่เพื่อเลือกจุด หรือกรอกพิกัดเอง</small>
+      <div class="row">
+        <input type="number" step="any" [ngModel]="lat()" (ngModelChange)="lat.set($event)" placeholder="ละติจูด" />
+        <input type="number" step="any" [ngModel]="lng()" (ngModelChange)="lng.set($event)" placeholder="ลองจิจูด" />
+      </div>
+      <div class="near-btns">
+        <button (click)="findCustomers()">ลูกค้าในระยะ 1 กม.</button>
+        <button (click)="findOrders()">ออเดอร์ในระยะ 2 กม.</button>
+        <button class="gray" (click)="clearNear()">ล้างผลการค้นหา</button>
+      </div>
+
+      @if (nearMode() === 'customers') {
+      <b class="near-title">พบลูกค้า {{ nearCustomers().length }} คน (ในระยะ 1 กม.)</b>
+      @for (c of nearCustomers(); track c.id) {
+      <div class="ord"><span>{{ c.firstname }} {{ c.lastname }}<br><small>{{ c.phone }}</small></span><b>{{ km(c) }}
+          กม.</b></div>
+      } @empty { <small class="empty-txt">ไม่พบลูกค้าในระยะนี้</small> }
+      }
+      @if (nearMode() === 'orders') {
+      <b class="near-title">พบออเดอร์ {{ nearOrders().length }} รายการ (ในระยะ 2 กม.)</b>
+      @for (o of nearOrders(); track o.id) {
+      <div class="ord"><span>{{ o.firstname }} {{ o.lastname }}<br><small>{{ o.quantity }} กล่อง</small></span><b>{{
+          km(o) }} กม.</b></div>
+      } @empty { <small class="empty-txt">ไม่พบออเดอร์ในระยะนี้</small> }
+      }
+    </div>
+
+    <div class="card">
+      <h3>ไรเดอร์ที่มาวันนี้</h3>
+      <div class="roster-list">
+        @for (r of roster; track r.id) {
+        <label class="chk" [class.off]="!r.active">
+          <input type="checkbox" [(ngModel)]="r.active" (change)="saveRoster()" />
+          <span class="dot" [style.background]="r.color"></span>
+          <span>{{ r.name }}</span>
+        </label>
+        }
+      </div>
+      <a routerLink="/customers" class="lnk">จัดการไรเดอร์และลูกค้า</a>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>ออเดอร์วันนี้</h3>
+        <span class="count-badge">{{ orders().length }} รายการ ({{ total() }} กล่อง)</span>
+      </div>
+      <div class="ord-list scroll-list">
+        @for (o of orders(); track o.id; let i = $index) {
+        <div class="ord">
+          <span class="ord-idx">{{ i + 1 }}</span>
+          <span class="ord-name">{{ o.firstname }} {{ o.lastname }}</span>
+          <b class="ord-qty">{{ o.quantity }} กล่อง</b>
+          <button class="gray btn-xs" (click)="editOrder(o)">แก้ไข</button>
+          <button class="red btn-xs" (click)="removeOrder(o)">ลบ</button>
+        </div>
+        } @empty { <small class="empty-txt">ยังไม่มีออเดอร์ในวันนี้</small> }
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== แผนที่ ===== -->
+  <section class="main">
+    <div class="bar">
+      <button class="go" (click)="generate()">จัดเส้นทาง</button>
+      <button class="gray" (click)="mock()">สร้างข้อมูลจำลอง</button>
+      <button class="red" (click)="clear()">ล้างออเดอร์</button>
+      @if (msg()) {
+      <span class="status-pill" [class.badmsg]="msg().startsWith('ผิดพลาด') || msg().startsWith('คำเตือน')">{{ msg()
+        }}</span>
+      }
+    </div>
+    <small class="depot">สถานที่ตั้งร้าน: มหาวิทยาลัยมหาสารคาม (ม.ใหม่) พิกัด {{ depot.lat }}, {{ depot.lng }}</small>
+    @if (stale) { <div class="alert">ข้อมูลออเดอร์มีการเปลี่ยนแปลงหลังจากจัดเส้นทาง กรุณากด "จัดเส้นทาง" ใหม่อีกครั้ง
+    </div> }
+    @if (riskStops.length) {
+    <div class="alert">
+      <b>ออเดอร์เสี่ยงส่งเกินกำหนด 12:30 น. ({{ riskStops.length }} จุด)</b>
+      <ul>
+        @for (s of riskStops; track $index) {
+        <li [class.late]="s.late">{{ s.name }} - {{ s.rider }} ถึงประมาณ {{ s.eta }} น. {{ s.late ? '(เกินเวลา)' :
+          '(ใกล้หมดเวลา)' }}</li>
+        }
+      </ul>
+    </div>
+    }
+    <div id="map"></div>
+  </section>
+</div>
+
+<!-- ===== สรุปผลด้านล่าง ===== -->
+@if (plan(); as p) {
+<section class="summary-section">
+  <div class="sec-head">
+    <h3>สรุปงานไรเดอร์แต่ละคน</h3>
+  </div>
+  <div class="cards">
+    @for (r of p.riders; track r.no) {
+    <div class="rc" [style.border-top-color]="r.color">
+      <div class="rc-title">
+        <span class="dot" [style.background]="r.color"></span>
+        <b>{{ r.name }}</b>
+      </div>
+      <div class="rc-meta">{{ r.boxes }}/10 กล่อง | {{ r.stops.length }} จุดส่ง | ระยะทาง {{ r.km }} กม.</div>
+      <div class="rc-time">ส่งจุดสุดท้ายเสร็จประมาณ <b>{{ lastEta(r) }} น.</b> (กลับถึงร้าน {{ r.backEta }} น.)</div>
+      <div class="rc-status" [class.badmsg]="r.stops.some(s => s.late)">
+        {{ r.stops.some(s => s.late) ? 'สถานะ: มีจุดส่งเกินเวลา' : 'สถานะ: ส่งทันเวลาทุกจุด' }}
+      </div>
+      <div class="share">
+        <button (click)="copy(r)">คัดลอกลิงก์ใบงาน</button>
+        <a class="btn-outline" [href]="link(r)" target="_blank">เปิดใบงาน</a>
+      </div>
+    </div>
+    }
+  </div>
+
+  <div class="table-header">
+    <h3>
+      สถานะการส่ง: ส่งแล้ว {{ doneCount }}/{{ deliveries.length }} จุด | เลทเกิน 12:30 น. {{ lateCount }} จุด
+      @if (lateCount) { <span class="penalty-badge">ค่าปรับรวม {{ lateCount * 20 }} บาท</span> }
+    </h3>
+    <button class="gray" (click)="refreshDone()">รีเฟรชสถานะ</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ไรเดอร์</th>
+          <th>ลำดับจุดส่ง</th>
+          <th>ชื่อลูกค้า</th>
+          <th>เวลากำหนดถึง</th>
+          <th>เวลาส่งจริง</th>
+          <th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (d of deliveries; track $index) {
+        <tr [class.rowlate]="d.late">
+          <td><b>{{ d.rider }}</b></td>
+          <td>จุดที่ {{ d.idx }}</td>
+          <td>{{ d.name }}</td>
+          <td>{{ d.eta }} น.</td>
+          <td>{{ d.iso ? hhmm(d.iso) + ' น.' : '-' }}</td>
+          <td>
+            <span class="status-badge" [class.st-pending]="!d.iso" [class.st-late]="d.iso && d.late"
+              [class.st-ok]="d.iso && !d.late">
+              {{ !d.iso ? 'รอดำเนินการ' : d.late ? 'ส่งเลท' : 'ทันเวลา' }}
+            </span>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+}

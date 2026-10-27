@@ -1,0 +1,10 @@
+@if (showNav()) {
+  <nav>
+    <a class="brand" routerLink="/"><b>ข้าวกล่องเดลิเวอรี</b></a>
+    <div class="nav-links">
+      <a routerLink="/dashboard" routerLinkActive="on">แดชบอร์ด</a>
+      <a routerLink="/customers" routerLinkActive="on">จัดการไรเดอร์และลูกค้า</a>
+    </div>
+  </nav>
+}
+<main><router-outlet /></main>

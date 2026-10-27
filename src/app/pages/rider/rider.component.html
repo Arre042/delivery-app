@@ -1,0 +1,76 @@
+<div class="rider-shell">
+  <a class="back" [routerLink]="backLink">ย้อนกลับ</a>
+
+  @if (!no) {
+    <div class="box card-surface">
+      <h2>ไรเดอร์เข้าสู่ระบบ</h2>
+      <p class="sub">เลือกชื่อของคุณเพื่อดูใบงานประจำวัน</p>
+      <div class="rider-select">
+        @for (r of roster; track r.id) {
+          <button class="btn nav" (click)="go(r.id)">{{ r.name }}</button>
+        }
+      </div>
+      @if (!roster.length) { <p class="empty-state">วันนี้ยังไม่มีไรเดอร์ที่เช็กชื่อ</p> }
+    </div>
+  } @else if (!rider) {
+    <div class="box card-surface">
+      <h2>ยังไม่มีใบงานสำหรับไรเดอร์ {{ no }}</h2>
+      <p class="sub">กรุณาให้เจ้าของร้านกด "จัดเส้นทาง" แล้วส่งลิงก์ใบงานให้</p>
+    </div>
+  } @else {
+    <div class="box">
+      <div class="rider-header">
+        <span class="badge">DRIVER WORKSHEET</span>
+        <h2>ใบงาน: {{ rider.name }}</h2>
+      </div>
+
+      <div class="hero">
+        <span>วันนี้ต้องหยิบข้าวกล่องรวม</span>
+        <b>{{ rider.boxes }} กล่อง</b>
+        <span class="hero-sub">ทั้งหมด {{ rider.stops.length }} จุดส่ง | ส่งแล้ว {{ doneCount }}/{{ rider.stops.length }} จุด</span>
+      </div>
+
+      <div class="flow">
+        @for (s of rider.stops; track $index) {
+          <span class="step" [class.ok]="doneAt($index)">{{ $index + 1 }}</span>
+        }
+        <span class="step home">กลับร้าน</span>
+      </div>
+
+      <ol class="stops">
+        @for (s of rider.stops; track $index) {
+          <li [class.done]="doneAt($index)" [class.next]="$index === nextIdx">
+            <div class="head">
+              <b>จุดที่ {{ $index + 1 }}</b>
+              <span class="nm">คุณ {{ s.name }}</span>
+              <span class="qty">{{ s.qty }} กล่อง</span>
+            </div>
+            <small class="eta-txt" [class.late]="s.late">เวลาที่ควรถึง {{ s.eta }} น.{{ s.late ? ' (เสี่ยงเลท)' : '' }}</small>
+
+            <div class="acts">
+              @if (s.phone) { <a class="btn call" [href]="'tel:' + s.phone">โทร {{ s.phone }}</a> }
+              <a class="btn nav" [href]="navTo(s.lat, s.lng)" target="_blank">เปิดแผนที่นำทาง</a>
+            </div>
+
+            @if (doneAt($index); as t) {
+              <div class="okline" [class.bad]="!ps.onTime(t)">
+                <span>ส่งสำเร็จเวลา {{ ps.hhmm(t) }} น. ({{ ps.onTime(t) ? 'ทันเวลา' : 'เลทเกิน 12:30 น.' }})</span>
+                <a class="undo" (click)="undo($index)">ยกเลิก</a>
+              </div>
+            } @else {
+              <button class="btn ok" (click)="markDone($index)">ยืนยันส่งเสร็จแล้ว</button>
+            }
+          </li>
+        }
+        <li class="back-shop">
+          <b>เสร็จสิ้นงาน ขับกลับร้าน</b>
+          <small>เวลาถึงร้านโดยประมาณ {{ rider.backEta }} น.</small>
+        </li>
+      </ol>
+
+      <a class="map" [href]="mapUrl" target="_blank">เปิดแผนที่รวมทั้งเส้นทาง (Google Maps)</a>
+      <button class="btn report" (click)="report()">คัดลอกลิงก์ส่งรายงานเวลาส่งให้ร้าน</button>
+      @if (msg()) { <p class="msgok">{{ msg() }}</p> }
+    </div>
+  }
+</div>
