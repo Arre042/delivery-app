@@ -66,6 +66,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   hhmm(iso: string) { return this.planner.hhmm(iso); }
   lastEta(r: RiderPlan) { return r.stops.length ? r.stops[r.stops.length - 1].eta : '-'; }
 
+  // เช็คว่าไรเดอร์ส่งครบทุกจุดหรือยัง
+  isRiderDone(p: Plan, r: RiderPlan): boolean {
+    if (!r.stops.length) return false;
+    const d = this.done();
+    return r.stops.every((_, i) => !!d[this.planner.doneKey(p, r.no, i)]);
+  }
+
   private fail = (e: any) => this.msg.set('ผิดพลาด: ' + (e.error?.error ?? e.message));
 
   ngOnInit() {

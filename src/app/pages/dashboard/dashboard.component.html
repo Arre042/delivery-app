@@ -59,7 +59,6 @@
     <div class="card">
       <h3>ไรเดอร์ที่มาวันนี้</h3>
       <div class="roster-list">
-        <!-- แก้ไขเป็น roster() -->
         @for (r of roster(); track r.id) {
         <label class="chk" [class.off]="!r.active">
           <input type="checkbox" [(ngModel)]="r.active" (change)="saveRoster()" />
@@ -129,8 +128,8 @@
       </div>
       <div class="rc-meta">{{ r.boxes }}/10 กล่อง | {{ r.stops.length }} จุดส่งระยะทาง {{ r.km }} กม.</div>
       <div class="rc-time">ส่งเสร็จ <b>{{ lastEta(r) }} น.</b> (กลับถึงร้าน {{ r.backEta }} น.)</div>
-      <div class="rc-status" [class.badmsg]="r.stops.some(s => s.late)">
-        {{ r.stops.some(s => s.late) ? 'มีออเดอร์ส่งช้า' : 'เวลาจัดส่งปกติ' }}
+      <div class="rc-status" [class.badmsg]="!isRiderDone(p, r) && r.stops.some(s => s.late)">
+        {{ isRiderDone(p, r) ? 'จัดส่งสำเร็จ' : (r.stops.some(s => s.late) ? 'มีออเดอร์ส่งช้า' : 'เวลาจัดส่งปกติ') }}
       </div>
       <div class="share">
         <button (click)="copy(r)">คัดลอกลิงก์ส่งงาน</button>
