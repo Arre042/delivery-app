@@ -129,15 +129,19 @@
       <div class="rc-meta">{{ r.boxes }}/10 กล่อง | {{ r.stops.length }} จุดส่งระยะทาง {{ r.km }} กม.</div>
       <div class="rc-time">ส่งเสร็จ <b>{{ lastEta(r) }} น.</b> (กลับถึงร้าน {{ r.backEta }} น.)</div>
       
-      @if (isRiderDone(p, r)) {
-        <div class="done-block">จัดส่งสำเร็จ</div>
-      } @else {
-        <div class="status-yellow">กำลังจัดส่ง</div>
-        <div class="share">
-          <button (click)="copy(r)">คัดลอกลิงก์ส่งงาน</button>
-          <a class="btn-outline" [href]="link(r)" target="_blank">เปิดดู</a>
-        </div>
-      }
+      <!-- ส่วนป้ายสถานะแบบ Block ชิดล่าง -->
+      <div class="rc-footer">
+        @if (isRiderDone(p, r)) {
+          <div class="status-block success">จัดส่งสำเร็จ</div>
+        } @else {
+          <div class="status-block warning">กำลังจัดส่ง</div>
+          <div class="share">
+            <button (click)="copy(r)">คัดลอกลิงก์ส่งงาน</button>
+            <a class="btn-outline" [href]="link(r)" target="_blank">เปิดดู</a>
+          </div>
+        }
+      </div>
+
     </div>
     }
   </div>
