@@ -34,7 +34,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   matches = signal<Customer[]>([]);
   done = signal<Record<string, string>>(this.planner.getDone());
   
-  // ซิงค์ไรเดอร์ด้วย Signal
   roster = signal<RosterRider[]>(this.planner.roster());
   
   phone = '';
@@ -66,7 +65,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   hhmm(iso: string) { return this.planner.hhmm(iso); }
   lastEta(r: RiderPlan) { return r.stops.length ? r.stops[r.stops.length - 1].eta : '-'; }
 
-  // เช็คว่าไรเดอร์ส่งครบทุกจุดหรือยัง
   isRiderDone(p: Plan, r: RiderPlan): boolean {
     if (!r.stops.length) return false;
     const d = this.done();
