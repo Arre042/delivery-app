@@ -6,7 +6,7 @@ import * as L from 'leaflet';
 import Swal from 'sweetalert2';
 import { ApiService } from '../../api.service';
 import { PlannerService, haversine } from '../../planner.service';
-import { Customer, Order, Plan, RiderPlan, DEPOT } from '../../models';
+import { Customer, Order, Plan, RiderPlan, DEPOT, RosterRider } from '../../models';
 
 @Component({
   selector: 'app-dashboard', standalone: true, imports: [FormsModule, RouterLink],
@@ -33,24 +33,25 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   nearOrders = signal<Order[]>([]);
   matches = signal<Customer[]>([]);
   done = signal<Record<string, string>>(this.planner.getDone());
-  roster = this.planner.roster();
+  
+  // ซิงค์ไรเดอร์ด้วย Signal
+  roster = signal<RosterRider[]>(this.planner.roster());
+  
   phone = '';
   qty: number | null = 1;
 
   private onStorage = (e: StorageEvent) => {
     if (e.key === 'done') this.refreshDone();
+    if (e.key === 'roster') this.roster.set(this.planner.roster());
   };
 
   total = computed(() => this.orders().reduce((s, o) => s + o.quantity, 0));
-  get activeCount() { return this.roster.filter(r => r.active).length; }
+  get activeCount() { return this.roster().filter(r => r.active).length; }
   get capacity() { return this.activeCount * 10; }
   get qtyBad() { const q = this.qty; return q == null || !Number.isInteger(q) || q < 1 || q > 3; }
 
   get stale() { const p = this.plan(); return !!p && p.riders.reduce((s, r) => s + r.boxes, 0) !== this.total(); }
-
-  get riskStops() {
-    return (this.plan()?.riders ?? []).flatMap(r => r.stops.filter(s => s.eta >= '12:20').map(s => ({ ...s, rider: r.name })));
-  }
+  get riskStops() { return (this.plan()?.riders ?? []).flatMap(r => r.stops.filter(s => s.eta >= '12:20').map(s => ({ ...s, rider: r.name }))); }
 
   get deliveries() {
     const p = this.plan(), d = this.done();
@@ -110,7 +111,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   async addQuick() {
     const c = this.found(), q = this.qty;
     if (!c || this.qtyBad || q == null) return;
-
     const res = await Swal.fire({
       title: 'ยืนยันการสั่งอาหาร?',
       text: `สั่งอาหารให้คุณ ${c.firstname} ${c.lastname} จำนวน ${q} กล่อง`,
@@ -149,13 +149,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       cancelButtonText: 'ยกเลิก',
       inputValidator: (value) => {
         const n = Number(value);
-        if (!value || !Number.isInteger(n) || n < 1 || n > 3) {
-          return 'กรุณาระบุจำนวน 1-3 กล่องเท่านั้น';
-        }
+        if (!value || !Number.isInteger(n) || n < 1 || n > 3) return 'กรุณาระบุจำนวน 1-3 กล่องเท่านั้น';
         return null;
       }
     });
-
     if (!isConfirmed) return;
     const q = Number(qStr);
     this.api.updateOrder(o.id, q).subscribe({
@@ -179,7 +176,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       cancelButtonText: 'ยกเลิก'
     });
     if (!res.isConfirmed) return;
-
     this.api.deleteOrder(o.id).subscribe({ 
       next: () => {
         this.loadAll();
@@ -189,10 +185,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     }); 
   }
 
-  saveRoster() { this.planner.saveRoster(this.roster); }
+  saveRoster() { this.planner.saveRoster(this.roster()); }
 
   generate() {
-    const act = this.roster.filter(r => r.active);
+    const act = this.roster().filter(r => r.active);
     if (!act.length) return this.msg.set('กรุณาเลือกไรเดอร์อย่างน้อย 1 คน');
     this.msg.set('กำลังจัดเส้นทาง...');
     forkJoin({ orders: this.api.getOrders(), customers: this.api.getCustomers() }).subscribe({
@@ -231,7 +227,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       cancelButtonText: 'ยกเลิก'
     });
     if (!res.isConfirmed) return;
-
     this.api.clearOrders().subscribe({
       next: () => { 
         this.planner.clear(); 
@@ -246,14 +241,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   link(r: RiderPlan) { return `${location.origin}/rider/${r.no}#${this.planner.encode(this.plan()!, r)}`; }
-  copy(r: RiderPlan) {
-    navigator.clipboard.writeText(this.link(r)).then(() => this.msg.set(`คัดลอกลิงก์ของ ${r.name} ส่งทาง LINE ได้เลย`));
-  }
+  copy(r: RiderPlan) { navigator.clipboard.writeText(this.link(r)).then(() => this.msg.set(`คัดลอกลิงก์ของ ${r.name} ส่งทาง LINE ได้เลย`)); }
 
-  refreshDone() {
-    this.done.set(this.planner.getDone());
-    this.refreshMap();
-  }
+  refreshDone() { this.done.set(this.planner.getDone()); this.refreshMap(); }
 
   private importReport() {
     if (!location.hash.startsWith('#r=')) return;
@@ -262,10 +252,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (d) { this.planner.mergeDone(d); this.refreshDone(); this.msg.set(`รับรายงานผลแล้ว (${Object.keys(d).length} จุด)`); }
   }
 
-  private validCenter() {
-    const a = this.lat(), b = this.lng();
-    return typeof a === 'number' && typeof b === 'number' && !isNaN(a) && !isNaN(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180;
-  }
+  private validCenter() { const a = this.lat(), b = this.lng(); return typeof a === 'number' && typeof b === 'number' && !isNaN(a) && !isNaN(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180; }
   dist(p: { lat: number; lng: number }) { return haversine({ lat: this.lat()!, lng: this.lng()! }, p); }
   km(p: { lat: number; lng: number }) { return this.dist(p).toFixed(2); }
 
@@ -273,28 +260,20 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.lat.set(+lat.toFixed(6)); this.lng.set(+lng.toFixed(6));
     this.nearMode.set(''); this.nearLayer.clearLayers(); this.centerPin([lat, lng]);
   }
-  private centerPin(c: L.LatLngExpression) {
-    L.circleMarker(c, { radius: 6, color: '#000', fillColor: '#6a1b9a', fillOpacity: 1 }).bindTooltip('จุดค้นหา').addTo(this.nearLayer);
-  }
+  private centerPin(c: L.LatLngExpression) { L.circleMarker(c, { radius: 6, color: '#000', fillColor: '#6a1b9a', fillOpacity: 1 }).bindTooltip('จุดค้นหา').addTo(this.nearLayer); }
   clearNear() { this.nearMode.set(''); this.nearCustomers.set([]); this.nearOrders.set([]); this.nearLayer.clearLayers(); }
 
   findCustomers() {
     if (!this.validCenter()) return this.msg.set('กรุณาระบุพิกัดให้ถูกต้อง');
     this.api.nearbyCustomers(this.lat()!, this.lng()!).subscribe({
-      next: r => {
-        this.nearCustomers.set([...r.data].sort((a, b) => this.dist(a) - this.dist(b)));
-        this.nearMode.set('customers'); this.drawNear(1);
-      },
+      next: r => { this.nearCustomers.set([...r.data].sort((a, b) => this.dist(a) - this.dist(b))); this.nearMode.set('customers'); this.drawNear(1); },
       error: this.fail,
     });
   }
   findOrders() {
     if (!this.validCenter()) return this.msg.set('กรุณาระบุพิกัดให้ถูกต้อง');
     this.api.nearbyOrders(this.lat()!, this.lng()!).subscribe({
-      next: r => {
-        this.nearOrders.set([...r.data].sort((a, b) => this.dist(a) - this.dist(b)));
-        this.nearMode.set('orders'); this.drawNear(2);
-      },
+      next: r => { this.nearOrders.set([...r.data].sort((a, b) => this.dist(a) - this.dist(b))); this.nearMode.set('orders'); this.drawNear(2); },
       error: this.fail,
     });
   }
@@ -306,8 +285,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const rows = this.nearMode() === 'customers'
       ? this.nearCustomers().map(x => ({ lat: x.lat, lng: x.lng, text: `${x.firstname} ${x.lastname} (${x.phone})` }))
       : this.nearOrders().map(x => ({ lat: x.lat, lng: x.lng, text: `${x.firstname} (${x.quantity} กล่อง)` }));
-    rows.forEach(r => L.circleMarker([r.lat, r.lng], { radius: 8, color: '#6a1b9a', fillColor: '#ce93d8', fillOpacity: 1 })
-      .bindPopup(r.text).addTo(this.nearLayer));
+    rows.forEach(r => L.circleMarker([r.lat, r.lng], { radius: 8, color: '#6a1b9a', fillColor: '#ce93d8', fillOpacity: 1 }).bindPopup(r.text).addTo(this.nearLayer));
     this.map.fitBounds(circle.getBounds(), { padding: [20, 20] });
   }
 
@@ -316,16 +294,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const p = this.plan();
     if (p) this.draw(p); else this.drawPins();
   }
-  private drawDepot() {
-    L.circleMarker([this.depot.lat, this.depot.lng], { radius: 10, color: '#000', fillColor: '#ffeb3b', fillOpacity: 1 })
-      .bindTooltip('ร้านข้าวกล่อง').addTo(this.layer);
-  }
+  private drawDepot() { L.circleMarker([this.depot.lat, this.depot.lng], { radius: 10, color: '#000', fillColor: '#ffeb3b', fillOpacity: 1 }).bindTooltip('ร้านข้าวกล่อง').addTo(this.layer); }
+  
   private drawPins() {
     this.layer.clearLayers(); this.drawDepot();
     const pts: L.LatLngExpression[] = [[this.depot.lat, this.depot.lng]];
     for (const o of this.orders()) {
-      L.circleMarker([o.lat, o.lng], { radius: 7, color: '#455a64', fillColor: '#90a4ae', fillOpacity: 1 })
-        .bindPopup(`${o.firstname} ${o.lastname} (${o.quantity} กล่อง)`).addTo(this.layer);
+      L.circleMarker([o.lat, o.lng], { radius: 7, color: '#455a64', fillColor: '#90a4ae', fillOpacity: 1 }).bindPopup(`${o.firstname} ${o.lastname} (${o.quantity} กล่อง)`).addTo(this.layer);
       pts.push([o.lat, o.lng]);
     }
     if (pts.length > 1) this.map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
@@ -338,12 +313,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const d = this.done();
 
     for (const r of p.riders) {
-      // กรองเฉพาะจุดที่ยังไม่ได้กดส่งเสร็จ
-      const pendingStops = r.stops
-        .map((s, i) => ({ s, i }))
-        .filter(item => !d[this.planner.doneKey(p, r.no, item.i)]);
-
-      // ถ้าไรเดอร์คนนี้ส่งครบทุกจุดแล้ว ไม่ต้องวาดเส้นและหมุด
+      const pendingStops = r.stops.map((s, i) => ({ s, i })).filter(item => !d[this.planner.doneKey(p, r.no, item.i)]);
       if (!pendingStops.length) continue;
 
       const line: L.LatLngExpression[] = [
@@ -360,7 +330,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bounds.push([s.lat, s.lng]);
       });
     }
-
     if (bounds.length > 1) {
       this.map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30] });
     } else {

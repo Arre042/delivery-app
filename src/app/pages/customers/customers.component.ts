@@ -1,10 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { ApiService } from '../../api.service';
 import { PlannerService, COLORS, haversine } from '../../planner.service';
-import { Customer, DEPOT } from '../../models';
+import { Customer, DEPOT, RosterRider } from '../../models';
 
 const MAX_KM = 20;
 
@@ -12,7 +12,7 @@ const MAX_KM = 20;
   selector: 'app-customers', standalone: true, imports: [FormsModule, RouterLink],
   templateUrl: './customers.component.html', styleUrl: './customers.component.css',
 })
-export class CustomersComponent implements OnInit {
+export class CustomersComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private planner = inject(PlannerService);
 
@@ -22,8 +22,15 @@ export class CustomersComponent implements OnInit {
   keyword = '';
   form: Customer = this.empty();
   touched: Record<string, boolean> = {};
-  roster = this.planner.roster();
+  
+  // เปลี่ยน roster เป็น signal เพื่อให้ UI อัปเดตแบบเรียลไทม์
+  roster = signal<RosterRider[]>(this.planner.roster());
+  
   qty: Record<number, number | null> = {};
+
+  private onStorage = (e: StorageEvent) => {
+    if (e.key === 'roster') this.roster.set(this.planner.roster());
+  };
 
   qtyBad(c: Customer) { const v = this.qty[c.id!]; return v != null && (!Number.isInteger(v) || v < 1 || v > 3); }
 
@@ -76,14 +83,25 @@ export class CustomersComponent implements OnInit {
     return d > MAX_KM ? +d.toFixed(1) : 0;
   }
 
-  ngOnInit() { this.load(); }
+  ngOnInit() { 
+    this.load(); 
+    window.addEventListener('storage', this.onStorage);
+  }
+
+  ngOnDestroy() {
+    window.removeEventListener('storage', this.onStorage);
+  }
+
   empty(): Customer { return { firstname: '', lastname: '', phone: '', lat: DEPOT.lat, lng: DEPOT.lng }; }
   private err = (e: any) => this.msg.set('ผิดพลาด: ' + (e.error?.error ?? e.message));
 
-  saveRoster() { this.planner.saveRoster(this.roster); }
+  // ---------- จัดการไรเดอร์ ----------
+  saveRoster() { this.planner.saveRoster(this.roster()); }
+  
   addRider() {
-    const id = Math.max(0, ...this.roster.map(r => r.id)) + 1;
-    this.roster.push({ id, name: `ไรเดอร์ ${id}`, color: COLORS[(id - 1) % COLORS.length], active: true });
+    const current = this.roster();
+    const id = current.length > 0 ? Math.max(...current.map(r => r.id)) + 1 : 1;
+    this.roster.update(r => [...r, { id, name: `ไรเดอร์ ${id}`, color: COLORS[(id - 1) % COLORS.length], active: true }]);
     this.saveRoster();
   }
   
@@ -101,11 +119,31 @@ export class CustomersComponent implements OnInit {
     
     if (!res.isConfirmed) return;
 
-    this.roster = this.roster.filter(r => r.id !== id); 
+    this.roster.update(r => r.filter(x => x.id !== id)); 
     this.saveRoster();
     Swal.fire({ title: 'ลบสำเร็จ', icon: 'success', timer: 1000, showConfirmButton: false });
   }
 
+  async removeAllRiders() {
+    const res = await Swal.fire({
+      title: 'ลบไรเดอร์ทั้งหมด?',
+      text: 'คุณต้องการลบรายชื่อไรเดอร์ทั้งหมดใช่หรือไม่?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ลบทั้งหมด',
+      cancelButtonText: 'ยกเลิก'
+    });
+    
+    if (!res.isConfirmed) return;
+
+    this.roster.set([]); 
+    this.saveRoster();
+    Swal.fire({ title: 'ลบทั้งหมดสำเร็จ', icon: 'success', timer: 1000, showConfirmButton: false });
+  }
+
+  // ---------- จัดการลูกค้า ----------
   load() { this.api.getCustomers().subscribe({ next: d => { this.all.set(d); this.customers.set(d); }, error: this.err }); }
   search() {
     const k = this.keyword.trim();
