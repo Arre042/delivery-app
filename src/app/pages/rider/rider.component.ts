@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import Swal from 'sweetalert2';
 import { PlannerService } from '../../planner.service';
 import { Plan, RiderPlan, RosterRider } from '../../models';
 
@@ -15,6 +16,7 @@ export class RiderComponent {
   plan: Plan | null = null;
   rider: RiderPlan | undefined;
   mapUrl = '';
+
   done = signal<Record<string, string>>(this.ps.getDone());
   msg = signal('');
 
@@ -23,9 +25,10 @@ export class RiderComponent {
   get nextIdx() { return this.rider ? this.rider.stops.findIndex((_, i) => !this.doneAt(i)) : -1; }
 
   constructor() {
-    // ใช้ข้อมูลจากลิงก์ที่หัวหน้าส่งมา (#hash) ก่อน ถ้าไม่มีค่อยใช้แผนในเครื่องนี้
+    // อ่าน plan จาก URL (#hash) ถ้ามี หรือโหลดจาก localStorage
     this.plan = this.ps.decode(location.hash.slice(1)) ?? this.ps.load();
     this.rider = this.plan?.riders.find(r => r.no === this.no);
+
     if (this.plan && this.rider) {
       const d = `${this.plan.depot.lat},${this.plan.depot.lng}`;
       this.mapUrl = `https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=${d}&destination=${d}` +
@@ -39,19 +42,39 @@ export class RiderComponent {
   private key(i: number) { return this.ps.doneKey(this.plan!, this.no, i); }
   doneAt(i: number): string | undefined { return this.done()[this.key(i)]; }
 
-  markDone(i: number) {
-    if (!confirm(`ยืนยันว่าส่งจุดที่ ${i + 1} สำเร็จแล้ว?`)) return;
+  async markDone(i: number) {
+    const res = await Swal.fire({
+      title: 'ยืนยันการส่ง?',
+      text: `ส่งสินค้าจุดที่ ${i + 1} เรียบร้อยแล้วใช่หรือไม่?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#059669',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ยืนยัน',
+      cancelButtonText: 'ยกเลิก'
+    });
+    
+    if (!res.isConfirmed) return;
+
     this.ps.setDone(this.key(i), new Date().toISOString());
     this.done.set(this.ps.getDone());
+    
+    Swal.fire({
+      title: 'ส่งสำเร็จ!',
+      icon: 'success',
+      timer: 1000,
+      showConfirmButton: false
+    });
   }
+
   undo(i: number) { this.ps.setDone(this.key(i), null); this.done.set(this.ps.getDone()); }
 
-  /** สร้างลิงก์รายงานเวลาส่งจริง ส่งให้เจ้าของร้านทาง LINE */
+  /** สรุปผลส่งกลับไปแดชบอร์ด (เพื่อแชร์เข้า LINE) */
   report() {
     const prefix = `${this.plan!.createdAt}|${this.no}|`;
     const mine: Record<string, string> = {};
     Object.entries(this.done()).forEach(([k, v]) => { if (k.startsWith(prefix)) mine[k] = v; });
     const url = `${location.origin}/dashboard#r=${this.ps.pack(mine)}`;
-    navigator.clipboard.writeText(url).then(() => this.msg.set('คัดลอกลิงก์รายงานแล้ว ส่งให้เจ้าของร้านทาง LINE ได้เลย'));
+    navigator.clipboard.writeText(url).then(() => this.msg.set('คัดลอกลิงก์รายงานผลแล้ว ส่ง LINE ได้เลย'));
   }
 }
