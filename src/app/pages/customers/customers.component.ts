@@ -6,7 +6,7 @@ import { ApiService } from '../../api.service';
 import { PlannerService, COLORS, haversine } from '../../planner.service';
 import { Customer, DEPOT } from '../../models';
 
-const MAX_KM = 20;   // ระยะเตือนไกลเกิน
+const MAX_KM = 20;
 
 @Component({
   selector: 'app-customers', standalone: true, imports: [FormsModule, RouterLink],
@@ -80,19 +80,32 @@ export class CustomersComponent implements OnInit {
   empty(): Customer { return { firstname: '', lastname: '', phone: '', lat: DEPOT.lat, lng: DEPOT.lng }; }
   private err = (e: any) => this.msg.set('ผิดพลาด: ' + (e.error?.error ?? e.message));
 
-  // ---------- จัดการไรเดอร์ ----------
   saveRoster() { this.planner.saveRoster(this.roster); }
   addRider() {
     const id = Math.max(0, ...this.roster.map(r => r.id)) + 1;
     this.roster.push({ id, name: `ไรเดอร์ ${id}`, color: COLORS[(id - 1) % COLORS.length], active: true });
     this.saveRoster();
   }
-  removeRider(id: number) {
-    if (!confirm('ลบไรเดอร์คนนี้?')) return;
-    this.roster = this.roster.filter(r => r.id !== id); this.saveRoster();
+  
+  async removeRider(id: number) {
+    const res = await Swal.fire({
+      title: 'ลบไรเดอร์?',
+      text: 'คุณต้องการลบรายชื่อไรเดอร์คนนี้ใช่หรือไม่?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ลบ',
+      cancelButtonText: 'ยกเลิก'
+    });
+    
+    if (!res.isConfirmed) return;
+
+    this.roster = this.roster.filter(r => r.id !== id); 
+    this.saveRoster();
+    Swal.fire({ title: 'ลบสำเร็จ', icon: 'success', timer: 1000, showConfirmButton: false });
   }
 
-  // ---------- จัดการลูกค้า ----------
   load() { this.api.getCustomers().subscribe({ next: d => { this.all.set(d); this.customers.set(d); }, error: this.err }); }
   search() {
     const k = this.keyword.trim();
@@ -108,5 +121,27 @@ export class CustomersComponent implements OnInit {
   }
   reset() { this.form = this.empty(); this.touched = {}; }
   edit(c: Customer) { this.form = { ...c }; window.scrollTo(0, 0); }
-  remove(c: Customer) { if (confirm('ลบลูกค้า ' + c.firstname + '?')) this.api.deleteCustomer(c.id!).subscribe({ next: () => this.load(), error: this.err }); }
+  
+  async remove(c: Customer) { 
+    const res = await Swal.fire({
+      title: 'ลบลูกค้า?',
+      text: `คุณต้องการลบข้อมูลลูกค้า "${c.firstname} ${c.lastname}" ใช่หรือไม่?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ลบข้อมูล',
+      cancelButtonText: 'ยกเลิก'
+    });
+    
+    if (!res.isConfirmed) return;
+
+    this.api.deleteCustomer(c.id!).subscribe({ 
+      next: () => {
+        this.load();
+        Swal.fire({ title: 'ลบสำเร็จ', icon: 'success', timer: 1000, showConfirmButton: false });
+      }, 
+      error: this.err 
+    }); 
+  }
 }

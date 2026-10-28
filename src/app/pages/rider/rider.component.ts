@@ -25,7 +25,6 @@ export class RiderComponent {
   get nextIdx() { return this.rider ? this.rider.stops.findIndex((_, i) => !this.doneAt(i)) : -1; }
 
   constructor() {
-    // อ่าน plan จาก URL (#hash) ถ้ามี หรือโหลดจาก localStorage
     this.plan = this.ps.decode(location.hash.slice(1)) ?? this.ps.load();
     this.rider = this.plan?.riders.find(r => r.no === this.no);
 
@@ -69,7 +68,6 @@ export class RiderComponent {
 
   undo(i: number) { this.ps.setDone(this.key(i), null); this.done.set(this.ps.getDone()); }
 
-  /** สรุปผลส่งกลับไปแดชบอร์ด (เพื่อแชร์เข้า LINE) */
   report() {
     const prefix = `${this.plan!.createdAt}|${this.no}|`;
     const mine: Record<string, string> = {};

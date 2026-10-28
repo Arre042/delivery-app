@@ -46,10 +46,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   get capacity() { return this.activeCount * 10; }
   get qtyBad() { const q = this.qty; return q == null || !Number.isInteger(q) || q < 1 || q > 3; }
 
-  /** ข้อมูลออเดอร์เปลี่ยนหลังจัดเส้นทาง */
   get stale() { const p = this.plan(); return !!p && p.riders.reduce((s, r) => s + r.boxes, 0) !== this.total(); }
 
-  /** จุดที่มี ETA >= 12:20 (เสี่ยงสาย/เกิน 12:30 น.) */
   get riskStops() {
     return (this.plan()?.riders ?? []).flatMap(r => r.stops.filter(s => s.eta >= '12:20').map(s => ({ ...s, rider: r.name })));
   }
@@ -96,7 +94,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ---------- ค้นหาเบอร์ -> เลือกลูกค้า -> สั่งด่วน -> จัดการออเดอร์ ----------
   onPhone() {
     const k = this.phone.trim().toLowerCase();
     this.found.set(null); this.matches.set([]);
@@ -170,12 +167,30 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  removeOrder(o: Order) { this.api.deleteOrder(o.id).subscribe({ next: () => this.loadAll(), error: this.fail }); }
+  async removeOrder(o: Order) { 
+    const res = await Swal.fire({
+      title: 'ลบออเดอร์?',
+      text: `คุณต้องการลบออเดอร์ของ ${o.firstname} ใช่หรือไม่?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ลบออเดอร์',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
 
-  // ---------- รายชื่อไรเดอร์ ----------
+    this.api.deleteOrder(o.id).subscribe({ 
+      next: () => {
+        this.loadAll();
+        Swal.fire({ title: 'ลบแล้ว!', icon: 'success', timer: 1000, showConfirmButton: false });
+      }, 
+      error: this.fail 
+    }); 
+  }
+
   saveRoster() { this.planner.saveRoster(this.roster); }
 
-  // ---------- จัดเส้นทาง ----------
   generate() {
     const act = this.roster.filter(r => r.active);
     if (!act.length) return this.msg.set('กรุณาเลือกไรเดอร์อย่างน้อย 1 คน');
@@ -204,15 +219,32 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   mock() { this.api.mockOrders().subscribe({ next: () => { this.msg.set('สร้างข้อมูลจำลองแล้ว'); this.loadAll(); }, error: this.fail }); }
 
-  clear() {
-    if (!confirm('ล้างออเดอร์ทั้งหมด?')) return;
+  async clear() {
+    const res = await Swal.fire({
+      title: 'ยืนยันการล้างข้อมูล?',
+      text: 'คุณต้องการล้างออเดอร์ทั้งหมดใช่หรือไม่? ข้อมูลจะไม่สามารถกู้คืนได้',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ล้างออเดอร์ทั้งหมด',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
+
     this.api.clearOrders().subscribe({
-      next: () => { this.planner.clear(); this.plan.set(null); this.orders.set([]); this.refreshMap(); this.msg.set('ล้างออเดอร์แล้ว'); },
+      next: () => { 
+        this.planner.clear(); 
+        this.plan.set(null); 
+        this.orders.set([]); 
+        this.refreshMap(); 
+        this.msg.set('ล้างออเดอร์แล้ว'); 
+        Swal.fire({ title: 'ล้างข้อมูลสำเร็จ', icon: 'success', timer: 1200, showConfirmButton: false });
+      },
       error: this.fail,
     });
   }
 
-  // ---------- แชร์และอัปเดตสถานะการส่ง ----------
   link(r: RiderPlan) { return `${location.origin}/rider/${r.no}#${this.planner.encode(this.plan()!, r)}`; }
   copy(r: RiderPlan) {
     navigator.clipboard.writeText(this.link(r)).then(() => this.msg.set(`คัดลอกลิงก์ของ ${r.name} ส่งทาง LINE ได้เลย`));
@@ -230,7 +262,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (d) { this.planner.mergeDone(d); this.refreshDone(); this.msg.set(`รับรายงานผลแล้ว (${Object.keys(d).length} จุด)`); }
   }
 
-  // ---------- ค้นหาใกล้พิกัด ----------
   private validCenter() {
     const a = this.lat(), b = this.lng();
     return typeof a === 'number' && typeof b === 'number' && !isNaN(a) && !isNaN(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180;
@@ -280,7 +311,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.map.fitBounds(circle.getBounds(), { padding: [20, 20] });
   }
 
-  // ---------- วาดแผนที่ ----------
   private refreshMap() {
     if (!this.map) return;
     const p = this.plan();
@@ -313,7 +343,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         .map((s, i) => ({ s, i }))
         .filter(item => !d[this.planner.doneKey(p, r.no, item.i)]);
 
-      // ถ้าไรเดอร์ส่งครบทุกจุดแล้ว ไม่ต้องวาดเส้นและหมุดของไรเดอร์คนนี้
+      // ถ้าไรเดอร์คนนี้ส่งครบทุกจุดแล้ว ไม่ต้องวาดเส้นและหมุด
       if (!pendingStops.length) continue;
 
       const line: L.LatLngExpression[] = [
