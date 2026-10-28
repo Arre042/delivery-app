@@ -38,6 +38,12 @@ export class RiderComponent {
   go(id: number) { this.router.navigate(['/rider', id]); }
   navTo(lat: number, lng: number) { return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat},${lng}`; }
 
+  // เพิ่มฟังก์ชันเปิดแผนที่เป็นหน้าต่าง Popup
+  openMapPopup(event: Event, url: string) {
+    event.preventDefault(); // ป้องกันไม่ให้เปลี่ยนหน้า
+    window.open(url, 'MapWindow', 'width=800,height=600,top=100,left=100,resizable=yes,scrollbars=yes');
+  }
+
   private key(i: number) { return this.ps.doneKey(this.plan!, this.no, i); }
   doneAt(i: number): string | undefined { return this.done()[this.key(i)]; }
 
@@ -67,12 +73,4 @@ export class RiderComponent {
   }
 
   undo(i: number) { this.ps.setDone(this.key(i), null); this.done.set(this.ps.getDone()); }
-
-  report() {
-    const prefix = `${this.plan!.createdAt}|${this.no}|`;
-    const mine: Record<string, string> = {};
-    Object.entries(this.done()).forEach(([k, v]) => { if (k.startsWith(prefix)) mine[k] = v; });
-    const url = `${location.origin}/dashboard#r=${this.ps.pack(mine)}`;
-    navigator.clipboard.writeText(url).then(() => this.msg.set('คัดลอกลิงก์รายงานผลแล้ว ส่ง LINE ได้เลย'));
-  }
 }

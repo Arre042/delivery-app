@@ -1,27 +1,28 @@
 <div class="rider-shell">
-  <a class="back" [routerLink]="backLink">ย้อนกลับ</a>
+  <!-- นำปุ่มย้อนกลับมาใส่ไว้ด้านบนสุดเหมือนเดิม -->
+  <a class="back" [routerLink]="backLink">← กลับ</a>
 
   @if (!no) {
     <div class="box card-surface">
-      <h2>ไรเดอร์เข้าสู่ระบบ</h2>
-      <p class="sub">เลือกชื่อของคุณเพื่อดูใบงานประจำวัน</p>
+      <h2>เลือกรถของคุณ</h2>
+      <p class="sub">แตะที่ชื่อไรเดอร์เพื่อดูเส้นทางจัดส่ง</p>
       <div class="rider-select">
         @for (r of roster; track r.id) {
           <button class="btn nav" (click)="go(r.id)">{{ r.name }}</button>
         }
       </div>
-      @if (!roster.length) { <p class="empty-state">วันนี้ยังไม่มีไรเดอร์ที่เช็กชื่อ</p> }
+      @if (!roster.length) { <p class="empty-state">ไม่มีรายชื่อไรเดอร์ที่พร้อมวิ่ง</p> }
     </div>
   } @else if (!rider) {
     <div class="box card-surface">
-      <h2>ยังไม่มีใบงานสำหรับไรเดอร์ {{ no }}</h2>
-      <p class="sub">กรุณาให้เจ้าของร้านกด "จัดเส้นทาง" แล้วส่งลิงก์ใบงานให้</p>
+      <h2>ไม่พบข้อมูลของ รถคันที่ {{ no }}</h2>
+      <p class="sub">อาจมีการจัดเส้นทางใหม่ หรือลิงก์ไม่ถูกต้อง</p>
     </div>
   } @else {
     <div class="box">
       <div class="rider-header">
         <span class="badge">DRIVER WORKSHEET</span>
-        <h2>ใบงาน: {{ rider.name }}</h2>
+        <h2>งานจัดส่ง: {{ rider.name }}</h2>
       </div>
 
       <div class="hero">
@@ -45,16 +46,16 @@
               <span class="nm">คุณ {{ s.name }}</span>
               <span class="qty">{{ s.qty }} กล่อง</span>
             </div>
-            <small class="eta-txt" [class.late]="s.late">เวลาที่ควรถึง {{ s.eta }} น.{{ s.late ? ' (เสี่ยงเลท)' : '' }}</small>
-
+            <small class="eta-txt" [class.late]="s.late">เวลาที่ควรถึง {{ s.eta }} น.{{ s.late ? ' (อาจจะส่งสาย)' : '' }}</small>
             <div class="acts">
               @if (s.phone) { <a class="btn call" [href]="'tel:' + s.phone">โทร {{ s.phone }}</a> }
-              <a class="btn nav" [href]="navTo(s.lat, s.lng)" target="_blank">เปิดแผนที่นำทาง</a>
+              
+              <!-- ใช้งาน openMapPopup เมื่อกดนำทาง -->
+              <a class="btn nav" [href]="navTo(s.lat, s.lng)" (click)="openMapPopup($event, navTo(s.lat, s.lng))">เปิดแผนที่นำทาง</a>
             </div>
-
             @if (doneAt($index); as t) {
               <div class="okline" [class.bad]="!ps.onTime(t)">
-                <span>ส่งสำเร็จเวลา {{ ps.hhmm(t) }} น. ({{ ps.onTime(t) ? 'ทันเวลา' : 'เลทเกิน 12:30 น.' }})</span>
+                <span>ส่งสำเร็จเวลา {{ ps.hhmm(t) }} น. ({{ ps.onTime(t) ? 'ตรงเวลา' : 'เกิน 12:30 น.' }})</span>
                 <a class="undo" (click)="undo($index)">ยกเลิก</a>
               </div>
             } @else {
@@ -67,10 +68,7 @@
           <small>เวลาถึงร้านโดยประมาณ {{ rider.backEta }} น.</small>
         </li>
       </ol>
-
-      <a class="map" [href]="mapUrl" target="_blank">เปิดแผนที่รวมทั้งเส้นทาง (Google Maps)</a>
-      <button class="btn report" (click)="report()">คัดลอกลิงก์ส่งรายงานเวลาส่งให้ร้าน</button>
-      @if (msg()) { <p class="msgok">{{ msg() }}</p> }
+      
     </div>
   }
 </div>

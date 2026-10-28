@@ -71,6 +71,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     return r.stops.every((_, i) => !!d[this.planner.doneKey(p, r.no, i)]);
   }
 
+  // ดึงรายชื่อไรเดอร์พร้อมจัดเรียง (คนที่ส่งเสร็จแล้วไปต่อท้ายสุด)
+  get sortedRiders() {
+    const p = this.plan();
+    if (!p) return [];
+    return [...p.riders].sort((a, b) => {
+      const aDone = this.isRiderDone(p, a) ? 1 : 0;
+      const bDone = this.isRiderDone(p, b) ? 1 : 0;
+      return aDone - bDone;
+    });
+  }
+
   private fail = (e: any) => this.msg.set('ผิดพลาด: ' + (e.error?.error ?? e.message));
 
   ngOnInit() {
@@ -190,6 +201,52 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     }); 
   }
 
+  // ฟังก์ชันล้างออเดอร์เฉพาะไรเดอร์คนนี้
+  async clearRiderOrders(r: RiderPlan) {
+    const res = await Swal.fire({
+      title: 'เคลียร์คิวไรเดอร์?',
+      text: `ต้องการเคลียร์ออเดอร์ทั้งหมดของ ${r.name} เพื่อรอรับงานใหม่ใช่หรือไม่?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#059669',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ยืนยันเคลียร์คิว',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
+
+    // หา ID ออเดอร์ที่ไรเดอร์คนนี้ไปส่ง
+    const orderIdsToDelete: number[] = [];
+    for (const stop of r.stops) {
+      const matchingOrders = this.orders().filter(o => 
+        o.lat === stop.lat && o.lng === stop.lng && `${o.firstname} ${o.lastname}` === stop.name
+      );
+      orderIdsToDelete.push(...matchingOrders.map(o => o.id));
+    }
+
+    if (orderIdsToDelete.length > 0) {
+      Swal.fire({ title: 'กำลังเคลียร์คิว...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const requests = orderIdsToDelete.map(id => this.api.deleteOrder(id));
+      forkJoin(requests).subscribe({
+        next: () => { this.removeRiderFromPlan(r); },
+        error: this.fail
+      });
+    } else {
+      this.removeRiderFromPlan(r);
+    }
+  }
+
+  private removeRiderFromPlan(r: RiderPlan) {
+    const p = this.plan();
+    if (p) {
+      p.riders = p.riders.filter(x => x.no !== r.no);
+      this.planner.save(p);
+      this.plan.set(p);
+    }
+    this.loadAll(); // รีเฟรชข้อมูล
+    Swal.fire({ title: 'เคลียร์คิวสำเร็จ!', text: `${r.name} พร้อมรับงานใหม่แล้ว`, icon: 'success', timer: 1500, showConfirmButton: false });
+  }
+
   saveRoster() { this.planner.saveRoster(this.roster()); }
 
   generate() {
@@ -247,6 +304,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   link(r: RiderPlan) { return `${location.origin}/rider/${r.no}#${this.planner.encode(this.plan()!, r)}`; }
   copy(r: RiderPlan) { navigator.clipboard.writeText(this.link(r)).then(() => this.msg.set(`คัดลอกลิงก์ของ ${r.name} ส่งทาง LINE ได้เลย`)); }
+
+  openPopup(event: Event, url: string) {
+    event.preventDefault();
+    window.open(url, 'RiderWindow', 'width=500,height=800,top=50,left=100,resizable=yes,scrollbars=yes');
+  }
 
   refreshDone() { this.done.set(this.planner.getDone()); this.refreshMap(); }
 

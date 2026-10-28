@@ -120,7 +120,8 @@
     <h3>สรุปงานไรเดอร์แต่ละคน</h3>
   </div>
   <div class="cards">
-    @for (r of p.riders; track r.no) {
+    <!-- วนลูปผ่าน sortedRiders แทน p.riders -->
+    @for (r of sortedRiders; track r.no) {
     <div class="rc" [style.border-top-color]="r.color">
       <div class="rc-title">
         <span class="dot" [style.background]="r.color"></span>
@@ -133,11 +134,11 @@
       <div class="rc-footer">
         @if (isRiderDone(p, r)) {
           <div class="status-block success">จัดส่งสำเร็จ</div>
+          <button class="btn-clear" (click)="clearRiderOrders(r)">เคลียร์งาน / รอรับออเดอร์ใหม่</button>
         } @else {
           <div class="status-block warning">กำลังจัดส่ง</div>
           <div class="share">
-            <button (click)="copy(r)">คัดลอกลิงก์ส่งงาน</button>
-            <a class="btn-outline" [href]="link(r)" target="_blank">เปิดดู</a>
+            <a class="btn-outline" style="display: block; width: 100%; text-align: center;" [href]="link(r)" (click)="openPopup($event, link(r))">เปิดดูเส้นทางจัดส่ง</a>
           </div>
         }
       </div>

@@ -366,7 +366,7 @@ button.red:hover:not(:disabled) {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   padding-top: 10px;
 }
 
@@ -390,6 +390,24 @@ button.red:hover:not(:disabled) {
   background: #fffbeb;
   color: #d97706;
   border: 1px solid #fde68a;
+}
+
+/* ปุ่มเคลียร์งาน */
+.btn-clear {
+  padding: 8px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  background: #fef2f2;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.btn-clear:hover {
+  background: #fee2e2;
 }
 
 .share {
